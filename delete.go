@@ -18,6 +18,8 @@ type deleteData struct {
 	OrderBys          []string
 	Limit             string
 	Offset            string
+	Parallel          bool
+	Timeout           string
 	Suffixes          []Sqlizer
 }
 
@@ -32,6 +34,18 @@ func (d *deleteData) ToSql() (sqlStr string, args []interface{}, err error) {
 	if len(d.From) == 0 {
 		err = fmt.Errorf("delete statements must specify a From table")
 		return
+	}
+
+	if d.PlaceholderFormat == Surreal {
+		if !strings.Contains(d.From, ":") && len(d.WhereParts) == 0 {
+			err = fmt.Errorf("delete statements must specify a key (e.g., table:id) or have a WHERE clause")
+			return
+		}
+	} else {
+		if len(d.WhereParts) == 0 {
+			err = fmt.Errorf("delete statements must have a WHERE clause")
+			return
+		}
 	}
 
 	sql := &bytes.Buffer{}
@@ -69,6 +83,17 @@ func (d *deleteData) ToSql() (sqlStr string, args []interface{}, err error) {
 	if len(d.Offset) > 0 {
 		sql.WriteString(" OFFSET ")
 		sql.WriteString(d.Offset)
+	}
+
+	if d.PlaceholderFormat == Surreal {
+		if len(d.Timeout) > 0 {
+			sql.WriteString(" TIMEOUT ")
+			sql.WriteString(d.Timeout)
+		}
+
+		if d.Parallel {
+			sql.WriteString(" PARALLEL")
+		}
 	}
 
 	if len(d.Suffixes) > 0 {
@@ -166,6 +191,16 @@ func (b DeleteBuilder) Limit(limit uint64) DeleteBuilder {
 // Offset sets a OFFSET clause on the query.
 func (b DeleteBuilder) Offset(offset uint64) DeleteBuilder {
 	return builder.Set(b, "Offset", fmt.Sprintf("%d", offset)).(DeleteBuilder)
+}
+
+// Timeout sets a TIMEOUT clause on the query (SurrealDB).
+func (b DeleteBuilder) Timeout(duration string) DeleteBuilder {
+	return builder.Set(b, "Timeout", duration).(DeleteBuilder)
+}
+
+// Parallel sets a PARALLEL clause on the query (SurrealDB).
+func (b DeleteBuilder) Parallel() DeleteBuilder {
+	return builder.Set(b, "Parallel", true).(DeleteBuilder)
 }
 
 // Suffix adds an expression to the end of the query

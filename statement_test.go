@@ -31,6 +31,7 @@ func TestRunWithDB(t *testing.T) {
 		builder.GetStruct(Insert("t").RunWith(db))
 		builder.GetStruct(Update("t").RunWith(db))
 		builder.GetStruct(Delete("t").RunWith(db))
+		builder.GetStruct(Create("t").RunWith(db))
 	}, "RunWith(*sql.DB) should not panic")
 
 }
@@ -42,6 +43,7 @@ func TestRunWithTx(t *testing.T) {
 		builder.GetStruct(Insert("t").RunWith(tx))
 		builder.GetStruct(Update("t").RunWith(tx))
 		builder.GetStruct(Delete("t").RunWith(tx))
+		builder.GetStruct(Create("t").RunWith(tx))
 	}, "RunWith(*sql.Tx) should not panic")
 }
 

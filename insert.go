@@ -21,8 +21,11 @@ type insertData struct {
 	Into              string
 	Columns           []string
 	Values            [][]interface{}
+	ContentValue      interface{}
 	Suffixes          []Sqlizer
 	Select            *SelectBuilder
+	Timeout           string
+	Parallel          bool
 }
 
 func (d *insertData) Exec() (sql.Result, error) {
@@ -55,8 +58,8 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 		err = errors.New("insert statements must specify a table")
 		return
 	}
-	if len(d.Values) == 0 && d.Select == nil {
-		err = errors.New("insert statements must have at least one set of values or select clause")
+	if len(d.Values) == 0 && d.Select == nil && d.ContentValue == nil {
+		err = errors.New("insert statements must have at least one set of values, select clause or content")
 		return
 	}
 
@@ -87,19 +90,34 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 	sql.WriteString(d.Into)
 	sql.WriteString(" ")
 
-	if len(d.Columns) > 0 {
-		sql.WriteString("(")
-		sql.WriteString(strings.Join(d.Columns, ","))
-		sql.WriteString(") ")
-	}
-
-	if d.Select != nil {
-		args, err = d.appendSelectToSQL(sql, args)
+	if d.PlaceholderFormat == Surreal && d.ContentValue != nil {
+		sql.WriteString("CONTENT ")
+		if vs, ok := d.ContentValue.(Sqlizer); ok {
+			vsql, vargs, err := vs.ToSql()
+			if err != nil {
+				return "", nil, err
+			}
+			sql.WriteString(vsql)
+			args = append(args, vargs...)
+		} else {
+			sql.WriteString("?")
+			args = append(args, d.ContentValue)
+		}
 	} else {
-		args, err = d.appendValuesToSQL(sql, args)
-	}
-	if err != nil {
-		return
+		if len(d.Columns) > 0 {
+			sql.WriteString("(")
+			sql.WriteString(strings.Join(d.Columns, ","))
+			sql.WriteString(") ")
+		}
+
+		if d.Select != nil {
+			args, err = d.appendSelectToSQL(sql, args)
+		} else {
+			args, err = d.appendValuesToSQL(sql, args)
+		}
+		if err != nil {
+			return
+		}
 	}
 
 	if len(d.Suffixes) > 0 {
@@ -107,6 +125,17 @@ func (d *insertData) ToSql() (sqlStr string, args []interface{}, err error) {
 		args, err = appendToSql(d.Suffixes, sql, " ", args)
 		if err != nil {
 			return
+		}
+	}
+
+	if d.PlaceholderFormat == Surreal {
+		if len(d.Timeout) > 0 {
+			sql.WriteString(" TIMEOUT ")
+			sql.WriteString(d.Timeout)
+		}
+
+		if d.Parallel {
+			sql.WriteString(" PARALLEL")
 		}
 	}
 
@@ -246,6 +275,11 @@ func (b InsertBuilder) Into(into string) InsertBuilder {
 	return builder.Set(b, "Into", into).(InsertBuilder)
 }
 
+// Content sets the CONTENT clause to the query.
+func (b InsertBuilder) Content(content interface{}) InsertBuilder {
+	return builder.Set(b, "ContentValue", content).(InsertBuilder)
+}
+
 // Columns adds insert columns to the query.
 func (b InsertBuilder) Columns(columns ...string) InsertBuilder {
 	return builder.Extend(b, "Columns", columns).(InsertBuilder)
@@ -291,6 +325,16 @@ func (b InsertBuilder) SetMap(clauses map[string]interface{}) InsertBuilder {
 // If Values and Select are used, then Select has higher priority
 func (b InsertBuilder) Select(sb SelectBuilder) InsertBuilder {
 	return builder.Set(b, "Select", &sb).(InsertBuilder)
+}
+
+// Timeout sets a TIMEOUT clause on the query (SurrealDB).
+func (b InsertBuilder) Timeout(duration string) InsertBuilder {
+	return builder.Set(b, "Timeout", duration).(InsertBuilder)
+}
+
+// Parallel sets a PARALLEL clause on the query (SurrealDB).
+func (b InsertBuilder) Parallel() InsertBuilder {
+	return builder.Set(b, "Parallel", true).(InsertBuilder)
 }
 
 func (b InsertBuilder) statementKeyword(keyword string) InsertBuilder {

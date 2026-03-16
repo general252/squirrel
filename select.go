@@ -15,6 +15,7 @@ type selectData struct {
 	Prefixes          []Sqlizer
 	Options           []string
 	Columns           []Sqlizer
+	Value             string
 	From              Sqlizer
 	Joins             []Sqlizer
 	WhereParts        []Sqlizer
@@ -23,6 +24,11 @@ type selectData struct {
 	OrderByParts      []Sqlizer
 	Limit             string
 	Offset            string
+	Start             string
+	Fetch             []string
+	Parallel          bool
+	Timeout           string
+	Version           string
 	Suffixes          []Sqlizer
 }
 
@@ -62,11 +68,6 @@ func (d *selectData) ToSql() (sqlStr string, args []interface{}, err error) {
 }
 
 func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
-	if len(d.Columns) == 0 {
-		err = fmt.Errorf("select statements must have at least one result column")
-		return
-	}
-
 	sql := &bytes.Buffer{}
 
 	if len(d.Prefixes) > 0 {
@@ -78,17 +79,27 @@ func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
 		sql.WriteString(" ")
 	}
 
-	sql.WriteString("SELECT ")
-
-	if len(d.Options) > 0 {
-		sql.WriteString(strings.Join(d.Options, " "))
-		sql.WriteString(" ")
-	}
-
-	if len(d.Columns) > 0 {
-		args, err = appendToSql(d.Columns, sql, ", ", args)
-		if err != nil {
+	if d.PlaceholderFormat == Surreal && len(d.Value) > 0 {
+		sql.WriteString("SELECT VALUE ")
+		sql.WriteString(d.Value)
+	} else {
+		if len(d.Columns) == 0 {
+			err = fmt.Errorf("select statements must have at least one result column")
 			return
+		}
+
+		sql.WriteString("SELECT ")
+
+		if len(d.Options) > 0 {
+			sql.WriteString(strings.Join(d.Options, " "))
+			sql.WriteString(" ")
+		}
+
+		if len(d.Columns) > 0 {
+			args, err = appendToSql(d.Columns, sql, ", ", args)
+			if err != nil {
+				return
+			}
 		}
 	}
 
@@ -97,6 +108,11 @@ func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
 		args, err = appendToSql([]Sqlizer{d.From}, sql, "", args)
 		if err != nil {
 			return
+		}
+
+		if d.PlaceholderFormat == Surreal && len(d.Version) > 0 {
+			sql.WriteString(" VERSION ")
+			sql.WriteString(d.Version)
 		}
 	}
 
@@ -145,6 +161,27 @@ func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
 	if len(d.Offset) > 0 {
 		sql.WriteString(" OFFSET ")
 		sql.WriteString(d.Offset)
+	}
+
+	if d.PlaceholderFormat == Surreal {
+		if len(d.Start) > 0 {
+			sql.WriteString(" START ")
+			sql.WriteString(d.Start)
+		}
+
+		if len(d.Fetch) > 0 {
+			sql.WriteString(" FETCH ")
+			sql.WriteString(strings.Join(d.Fetch, ", "))
+		}
+
+		if len(d.Timeout) > 0 {
+			sql.WriteString(" TIMEOUT ")
+			sql.WriteString(d.Timeout)
+		}
+
+		if d.Parallel {
+			sql.WriteString(" PARALLEL")
+		}
 	}
 
 	if len(d.Suffixes) > 0 {
@@ -260,6 +297,11 @@ func (b SelectBuilder) Columns(columns ...string) SelectBuilder {
 		parts = append(parts, newPart(str))
 	}
 	return builder.Extend(b, "Columns", parts).(SelectBuilder)
+}
+
+// Value sets a VALUE clause on the query (SurrealDB).
+func (b SelectBuilder) Value(column string) SelectBuilder {
+	return builder.Set(b, "Value", column).(SelectBuilder)
 }
 
 // RemoveColumns remove all columns from query.
@@ -390,6 +432,41 @@ func (b SelectBuilder) Offset(offset uint64) SelectBuilder {
 // RemoveOffset removes OFFSET clause.
 func (b SelectBuilder) RemoveOffset() SelectBuilder {
 	return builder.Delete(b, "Offset").(SelectBuilder)
+}
+
+// Start sets a START clause on the query (SurrealDB).
+func (b SelectBuilder) Start(start uint64) SelectBuilder {
+	return builder.Set(b, "Start", fmt.Sprintf("%d", start)).(SelectBuilder)
+}
+
+// RemoveStart removes START clause.
+func (b SelectBuilder) RemoveStart() SelectBuilder {
+	return builder.Delete(b, "Start").(SelectBuilder)
+}
+
+// Fetch adds FETCH clauses to the query (SurrealDB).
+func (b SelectBuilder) Fetch(fetch ...string) SelectBuilder {
+	return builder.Extend(b, "Fetch", fetch).(SelectBuilder)
+}
+
+// RemoveFetch removes all FETCH clauses from the query.
+func (b SelectBuilder) RemoveFetch() SelectBuilder {
+	return builder.Delete(b, "Fetch").(SelectBuilder)
+}
+
+// Timeout sets a TIMEOUT clause on the query (SurrealDB).
+func (b SelectBuilder) Timeout(duration string) SelectBuilder {
+	return builder.Set(b, "Timeout", duration).(SelectBuilder)
+}
+
+// Parallel sets a PARALLEL clause on the query (SurrealDB).
+func (b SelectBuilder) Parallel() SelectBuilder {
+	return builder.Set(b, "Parallel", true).(SelectBuilder)
+}
+
+// Version sets a VERSION clause on the query (SurrealDB).
+func (b SelectBuilder) Version(version string) SelectBuilder {
+	return builder.Set(b, "Version", version).(SelectBuilder)
 }
 
 // Suffix adds an expression to the end of the query

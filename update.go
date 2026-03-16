@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/lann/builder"
@@ -16,11 +15,15 @@ type updateData struct {
 	Prefixes          []Sqlizer
 	Table             string
 	SetClauses        []setClause
+	ContentValue      interface{}
+	Merge             bool
 	From              Sqlizer
 	WhereParts        []Sqlizer
 	OrderBys          []string
 	Limit             string
 	Offset            string
+	Parallel          bool
+	Timeout           string
 	Suffixes          []Sqlizer
 }
 
@@ -59,8 +62,12 @@ func (d *updateData) ToSql() (sqlStr string, args []interface{}, err error) {
 		err = fmt.Errorf("update statements must specify a table")
 		return
 	}
-	if len(d.SetClauses) == 0 {
-		err = fmt.Errorf("update statements must have at least one Set clause")
+	if len(d.SetClauses) == 0 && d.ContentValue == nil {
+		err = fmt.Errorf("update statements must have at least one Set clause or Content")
+		return
+	}
+	if d.ContentValue != nil && len(d.SetClauses) > 0 {
+		err = fmt.Errorf("update statements cannot use both Content and Set clauses")
 		return
 	}
 
@@ -78,28 +85,47 @@ func (d *updateData) ToSql() (sqlStr string, args []interface{}, err error) {
 	sql.WriteString("UPDATE ")
 	sql.WriteString(d.Table)
 
-	sql.WriteString(" SET ")
-	setSqls := make([]string, len(d.SetClauses))
-	for i, setClause := range d.SetClauses {
-		var valSql string
-		if vs, ok := setClause.value.(Sqlizer); ok {
+	if d.PlaceholderFormat == Surreal && d.ContentValue != nil {
+		if d.Merge {
+			sql.WriteString(" MERGE ")
+		} else {
+			sql.WriteString(" CONTENT ")
+		}
+		if vs, ok := d.ContentValue.(Sqlizer); ok {
 			vsql, vargs, err := vs.ToSql()
 			if err != nil {
 				return "", nil, err
 			}
-			if _, ok := vs.(SelectBuilder); ok {
-				valSql = fmt.Sprintf("(%s)", vsql)
-			} else {
-				valSql = vsql
-			}
+			sql.WriteString(vsql)
 			args = append(args, vargs...)
 		} else {
-			valSql = "?"
-			args = append(args, setClause.value)
+			sql.WriteString("?")
+			args = append(args, d.ContentValue)
 		}
-		setSqls[i] = fmt.Sprintf("%s = %s", setClause.column, valSql)
+	} else if len(d.SetClauses) > 0 {
+		sql.WriteString(" SET ")
+		setSqls := make([]string, len(d.SetClauses))
+		for i, setClause := range d.SetClauses {
+			var valSql string
+			if vs, ok := setClause.value.(Sqlizer); ok {
+				vsql, vargs, err := vs.ToSql()
+				if err != nil {
+					return "", nil, err
+				}
+				if _, ok := vs.(SelectBuilder); ok {
+					valSql = fmt.Sprintf("(%s)", vsql)
+				} else {
+					valSql = vsql
+				}
+				args = append(args, vargs...)
+			} else {
+				valSql = "?"
+				args = append(args, setClause.value)
+			}
+			setSqls[i] = fmt.Sprintf("%s = %s", setClause.column, valSql)
+		}
+		sql.WriteString(strings.Join(setSqls, ", "))
 	}
-	sql.WriteString(strings.Join(setSqls, ", "))
 
 	if d.From != nil {
 		sql.WriteString(" FROM ")
@@ -130,6 +156,17 @@ func (d *updateData) ToSql() (sqlStr string, args []interface{}, err error) {
 	if len(d.Offset) > 0 {
 		sql.WriteString(" OFFSET ")
 		sql.WriteString(d.Offset)
+	}
+
+	if d.PlaceholderFormat == Surreal {
+		if len(d.Timeout) > 0 {
+			sql.WriteString(" TIMEOUT ")
+			sql.WriteString(d.Timeout)
+		}
+
+		if d.Parallel {
+			sql.WriteString(" PARALLEL")
+		}
 	}
 
 	if len(d.Suffixes) > 0 {
@@ -221,6 +258,11 @@ func (b UpdateBuilder) Table(table string) UpdateBuilder {
 	return builder.Set(b, "Table", table).(UpdateBuilder)
 }
 
+// Content sets the CONTENT clause to the query.
+func (b UpdateBuilder) Content(content interface{}) UpdateBuilder {
+	return builder.Set(b, "ContentValue", content).(UpdateBuilder)
+}
+
 // Set adds SET clauses to the query.
 func (b UpdateBuilder) Set(column string, value interface{}) UpdateBuilder {
 	return builder.Append(b, "SetClauses", setClause{column: column, value: value}).(UpdateBuilder)
@@ -228,16 +270,8 @@ func (b UpdateBuilder) Set(column string, value interface{}) UpdateBuilder {
 
 // SetMap is a convenience method which calls .Set for each key/value pair in clauses.
 func (b UpdateBuilder) SetMap(clauses map[string]interface{}) UpdateBuilder {
-	keys := make([]string, len(clauses))
-	i := 0
-	for key := range clauses {
-		keys[i] = key
-		i++
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		val, _ := clauses[key]
-		b = b.Set(key, val)
+	for _, v := range setMap(clauses) {
+		b = b.Set(v.column, v.value)
 	}
 	return b
 }
@@ -275,6 +309,21 @@ func (b UpdateBuilder) Limit(limit uint64) UpdateBuilder {
 // Offset sets a OFFSET clause on the query.
 func (b UpdateBuilder) Offset(offset uint64) UpdateBuilder {
 	return builder.Set(b, "Offset", fmt.Sprintf("%d", offset)).(UpdateBuilder)
+}
+
+// Timeout sets a TIMEOUT clause on the query (SurrealDB).
+func (b UpdateBuilder) Timeout(duration string) UpdateBuilder {
+	return builder.Set(b, "Timeout", duration).(UpdateBuilder)
+}
+
+// Parallel sets a PARALLEL clause on the query (SurrealDB).
+func (b UpdateBuilder) Parallel() UpdateBuilder {
+	return builder.Set(b, "Parallel", true).(UpdateBuilder)
+}
+
+// Merge sets the MERGE clause on the query (SurrealDB).
+func (b UpdateBuilder) Merge() UpdateBuilder {
+	return builder.Set(b, "Merge", true).(UpdateBuilder)
 }
 
 // Suffix adds an expression to the end of the query

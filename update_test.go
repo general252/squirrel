@@ -105,3 +105,68 @@ func TestUpdateBuilderFromSelect(t *testing.T) {
 			"WHERE employees.account_id = subquery.id"
 	assert.Equal(t, expectedSql, sql)
 }
+
+func TestUpdateBuilderToSqlContent(t *testing.T) {
+	b := Update("users").
+		Content(map[string]interface{}{"name": "John", "age": 30}).
+		PlaceholderFormat(Surreal)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "UPDATE users CONTENT $1"
+	assert.Equal(t, expectedSql, sql)
+	assert.Equal(t, []interface{}{map[string]interface{}{"name": "John", "age": 30}}, args)
+}
+
+func TestUpdateBuilderContentWithWhere(t *testing.T) {
+	b := Update("users").
+		Content(map[string]interface{}{"name": "John"}).
+		Where("age > ?", 18).
+		PlaceholderFormat(Surreal)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "UPDATE users CONTENT $1 WHERE age > $2"
+	assert.Equal(t, expectedSql, sql)
+	assert.Equal(t, []interface{}{map[string]interface{}{"name": "John"}, 18}, args)
+}
+
+func TestUpdateBuilderContentWithSuffix(t *testing.T) {
+	b := Update("users").
+		Content(map[string]interface{}{"name": "John"}).
+		Where("id = ?", 1).
+		Suffix("RETURN AFTER").
+		PlaceholderFormat(Surreal)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "UPDATE users CONTENT $1 WHERE id = $2 RETURN AFTER"
+	assert.Equal(t, expectedSql, sql)
+	assert.Equal(t, []interface{}{map[string]interface{}{"name": "John"}, 1}, args)
+}
+
+func TestUpdateBuilderContentAndSetConflict(t *testing.T) {
+	b := Update("users").
+		Content(map[string]interface{}{"name": "John"}).
+		Set("age", 30).
+		PlaceholderFormat(Surreal)
+
+	_, _, err := b.ToSql()
+	assert.Error(t, err)
+}
+
+func TestUpdateBuilderContentSqlizer(t *testing.T) {
+	b := Update("users").
+		Content(Expr("$data")).
+		PlaceholderFormat(Surreal)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "UPDATE users CONTENT $data"
+	assert.Equal(t, expectedSql, sql)
+	assert.Empty(t, args)
+}

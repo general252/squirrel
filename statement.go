@@ -10,6 +10,16 @@ func (b StatementBuilderType) Select(columns ...string) SelectBuilder {
 	return SelectBuilder(b).Columns(columns...)
 }
 
+// Create returns a CreateBuilder for this StatementBuilderType.
+func (b StatementBuilderType) Create(targets string) CreateBuilder {
+	return CreateBuilder(b).Targets(targets)
+}
+
+// Relate returns a RelateBuilder for this StatementBuilderType (SurrealDB).
+func (b StatementBuilderType) Relate(in, edge, out string) RelateBuilder {
+	return RelateBuilder(b).In(in).Edge(edge).Out(out)
+}
+
 // Insert returns a InsertBuilder for this StatementBuilderType.
 func (b StatementBuilderType) Insert(into string) InsertBuilder {
 	return InsertBuilder(b).Into(into)
@@ -56,6 +66,20 @@ var StatementBuilder = StatementBuilderType(builder.EmptyBuilder).PlaceholderFor
 // See SelectBuilder.Columns.
 func Select(columns ...string) SelectBuilder {
 	return StatementBuilder.Select(columns...)
+}
+
+// Create returns a new CreateBuilder with the given targets.
+//
+// See CreateBuilder.Targets.
+func Create(targets string) CreateBuilder {
+	return StatementBuilder.Create(targets)
+}
+
+// Relate returns a new RelateBuilder with the given in, edge and out (SurrealDB).
+//
+// See RelateBuilder.In, RelateBuilder.Edge, RelateBuilder.Out.
+func Relate(in, edge, out string) RelateBuilder {
+	return StatementBuilder.Relate(in, edge, out)
 }
 
 // Insert returns a new InsertBuilder with the given table name.
