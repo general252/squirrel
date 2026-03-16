@@ -158,7 +158,7 @@ func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
 		sql.WriteString(d.Limit)
 	}
 
-	if len(d.Offset) > 0 {
+	if len(d.Offset) > 0 && d.PlaceholderFormat != Surreal {
 		sql.WriteString(" OFFSET ")
 		sql.WriteString(d.Offset)
 	}
@@ -167,6 +167,9 @@ func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
 		if len(d.Start) > 0 {
 			sql.WriteString(" START ")
 			sql.WriteString(d.Start)
+		} else if len(d.Offset) > 0 {
+			sql.WriteString(" START ")
+			sql.WriteString(d.Offset)
 		}
 
 		if len(d.Fetch) > 0 {
@@ -314,7 +317,8 @@ func (b SelectBuilder) RemoveColumns() SelectBuilder {
 // Column adds a result column to the query.
 // Unlike Columns, Column accepts args which will be bound to placeholders in
 // the columns string, for example:
-//   Column("IF(col IN ("+squirrel.Placeholders(3)+"), 1, 0) as col", 1, 2, 3)
+//
+//	Column("IF(col IN ("+squirrel.Placeholders(3)+"), 1, 0) as col", 1, 2, 3)
 func (b SelectBuilder) Column(column interface{}, args ...interface{}) SelectBuilder {
 	return builder.Append(b, "Columns", newPart(column, args...)).(SelectBuilder)
 }
