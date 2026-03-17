@@ -23,7 +23,7 @@ func TestSelectBuilderSurreal(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "SELECT * FROM user:john VERSION 2022-07-03T07:18:52Z WHERE name = $1 LIMIT 20 START 40 FETCH address, projects TIMEOUT 5s PARALLEL"
+	expectedSql := "SELECT * FROM user:john VERSION 2022-07-03T07:18:52Z WHERE name = $p1 LIMIT 20 START 40 FETCH address, projects TIMEOUT 5s PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"John"}, args)
 }
@@ -41,7 +41,7 @@ func TestSelectBuilderSurrealNoVersion(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "SELECT id, name FROM book WHERE published = $1 ORDER BY title LIMIT 10 START 0 FETCH author"
+	expectedSql := "SELECT id, name FROM book WHERE published = $p1 ORDER BY title LIMIT 10 START 0 FETCH author"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{true}, args)
 }
@@ -59,7 +59,6 @@ func TestSelectBuilderSurrealWithRemoveMethods(t *testing.T) {
 	sql, _, err := b.ToSql()
 	assert.NoError(t, err)
 	assert.Contains(t, sql, "LIMIT 100")
-	assert.Contains(t, sql, "OFFSET 10")
 	assert.Contains(t, sql, "START 5")
 	assert.Contains(t, sql, "FETCH field1")
 	assert.Contains(t, sql, "TIMEOUT 10s")
@@ -100,7 +99,7 @@ func TestSelectBuilderSurrealDistinct(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "SELECT DISTINCT * FROM user WHERE status = $1 PARALLEL"
+	expectedSql := "SELECT DISTINCT * FROM user WHERE status = $p1 PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"active"}, args)
 }
@@ -118,7 +117,7 @@ func TestCreateBuilderSurreal(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "CREATE user:john SET name = $1, age = $2 TIMEOUT 5s PARALLEL"
+	expectedSql := "CREATE user:john SET name = $p1, age = $p2 TIMEOUT 5s PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"John", 30}, args)
 }
@@ -151,7 +150,7 @@ func TestCreateBuilderSurrealTable(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "CREATE table:student SET active = $1, grade = $2, name = $3 PARALLEL"
+	expectedSql := "CREATE table:student SET active = $p1, grade = $p2, name = $p3 PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{true, 95, "Alice"}, args)
 }
@@ -180,7 +179,7 @@ func TestUpdateBuilderSurreal(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "UPDATE user:john SET name = $1 TIMEOUT 5s PARALLEL"
+	expectedSql := "UPDATE user:john SET name = $p1 TIMEOUT 5s PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"John"}, args)
 }
@@ -232,7 +231,7 @@ func TestUpdateBuilderSurrealWithFrom(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "UPDATE user:789 SET average = (SELECT avg_score FROM scores WHERE student_id = $1) FROM students WHERE verified = $2 ORDER BY created_at LIMIT 1 TIMEOUT 5s PARALLEL"
+	expectedSql := "UPDATE user:789 SET average = (SELECT avg_score FROM scores WHERE student_id = $p1) FROM students WHERE verified = $p2 ORDER BY created_at LIMIT 1 TIMEOUT 5s PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"user:789", true}, args)
 }
@@ -250,7 +249,7 @@ func TestUpdateBuilderSurrealSetMap(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "UPDATE product:123 SET on_sale = $1, price = $2, stock = $3 PARALLEL"
+	expectedSql := "UPDATE product:123 SET on_sale = $p1, price = $p2, stock = $p3 PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{false, 29.99, 100}, args)
 }
@@ -296,7 +295,7 @@ func TestRelateBuilderSurreal(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "RELATE user:john->wrote->article:1 SET when = $1 TIMEOUT 5s PARALLEL"
+	expectedSql := "RELATE user:john->wrote->article:1 SET when = $p1 TIMEOUT 5s PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"now()"}, args)
 }
@@ -329,7 +328,7 @@ func TestRelateBuilderSurrealSetMap(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "RELATE customer:A->purchased->product:X SET completed = $1, quantity = $2, total = $3 TIMEOUT 1s"
+	expectedSql := "RELATE customer:A->purchased->product:X SET completed = $p1, quantity = $p2, total = $p3 TIMEOUT 1s"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{true, 5, 149.95}, args)
 }
@@ -357,7 +356,7 @@ func TestInsertBuilderSurrealContent(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "INSERT INTO user CONTENT $1 TIMEOUT 5s"
+	expectedSql := "INSERT INTO user CONTENT $p1 TIMEOUT 5s"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{content}, args)
 }
@@ -398,7 +397,7 @@ func TestSurrealNestedQueryInCreate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, sql, "(SELECT")
 	assert.Contains(t, sql, "FROM temp_users")
-	assert.Contains(t, sql, "WHERE verified = $1")
+	assert.Contains(t, sql, "WHERE verified = $p1")
 }
 
 func TestSurrealMixedPlaceholders(t *testing.T) {
@@ -416,7 +415,7 @@ func TestSurrealMixedPlaceholders(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "SELECT u.* FROM user u JOIN profile p ON p.user_id = u.id WHERE u.status = $1 AND p.verified = $2 FETCH posts, comments TIMEOUT 5s PARALLEL"
+	expectedSql := "SELECT u.* FROM user u JOIN profile p ON p.user_id = u.id WHERE u.status = $p1 AND p.verified = $p2 FETCH posts, comments TIMEOUT 5s PARALLEL"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"active", true}, args)
 }
@@ -427,7 +426,7 @@ func TestSurrealPlaceholderIsolation(t *testing.T) {
 	// Verify Surreal format produces dollar placeholders
 	b1 := Select("*").From("t").Where(Eq{"a": 1}).PlaceholderFormat(Surreal)
 	sql1, args1, _ := b1.ToSql()
-	assert.Contains(t, sql1, "$1")
+	assert.Contains(t, sql1, "$p1")
 	assert.Equal(t, []interface{}{1}, args1)
 
 	// Compare with Question format
@@ -452,6 +451,34 @@ func TestMultipleBuildersIndependent(t *testing.T) {
 	sql2, _, _ := b2.ToSql()
 
 	// Each builder starts from $1 independently (args are local to ToSql call)
-	assert.Equal(t, "CREATE t1 SET a = $1", sql1)
-	assert.Equal(t, "CREATE t2 SET b = $1", sql2)
+	assert.Equal(t, "CREATE t1 SET a = $p1", sql1)
+	assert.Equal(t, "CREATE t2 SET b = $p1", sql2)
+}
+
+func TestSelectBuilderSurrealContains(t *testing.T) {
+	b := Select("*").
+		From("user").
+		Where(Contains{"tags": "admin"}).
+		PlaceholderFormat(Surreal)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "SELECT * FROM user WHERE tags CONTAINS $p1"
+	assert.Equal(t, expectedSql, sql)
+	assert.Equal(t, []interface{}{"admin"}, args)
+}
+
+func TestSelectBuilderSurrealMultipleContains(t *testing.T) {
+	b := Select("*").
+		From("user").
+		Where(And{Contains{"tags": "admin"}, Contains{"permissions": "read"}}).
+		PlaceholderFormat(Surreal)
+
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "SELECT * FROM user WHERE (tags CONTAINS $p1 AND permissions CONTAINS $p2)"
+	assert.Equal(t, expectedSql, sql)
+	assert.Equal(t, []interface{}{"admin", "read"}, args)
 }

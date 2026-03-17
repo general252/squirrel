@@ -462,3 +462,41 @@ func ExampleEq() {
 		"company": 20,
 	})
 }
+
+func TestContainsToSql(t *testing.T) {
+	b := Contains{"tags": "tag1"}
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "tags CONTAINS ?"
+	assert.Equal(t, expectedSql, sql)
+
+	expectedArgs := []interface{}{"tag1"}
+	assert.Equal(t, expectedArgs, args)
+}
+
+func TestContainsMultipleToSql(t *testing.T) {
+	b := Contains{"tags": "tag1", "categories": "cat2"}
+	sql, args, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "categories CONTAINS ? AND tags CONTAINS ?"
+	assert.Equal(t, expectedSql, sql)
+
+	expectedArgs := []interface{}{"cat2", "tag1"}
+	assert.Equal(t, expectedArgs, args)
+}
+
+func TestContainsWithNullToSql(t *testing.T) {
+	b := Contains{"tags": nil}
+	_, _, err := b.ToSql()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot use null with contains operators")
+}
+
+func TestContainsWithArrayToSql(t *testing.T) {
+	b := Contains{"tags": []string{"tag1", "tag2"}}
+	_, _, err := b.ToSql()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot use array or slice with contains operators")
+}

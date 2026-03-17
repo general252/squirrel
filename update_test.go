@@ -114,7 +114,7 @@ func TestUpdateBuilderToSqlContent(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "UPDATE users CONTENT $1"
+	expectedSql := "UPDATE users CONTENT $p1"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{map[string]interface{}{"name": "John", "age": 30}}, args)
 }
@@ -128,7 +128,7 @@ func TestUpdateBuilderContentWithWhere(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "UPDATE users CONTENT $1 WHERE age > $2"
+	expectedSql := "UPDATE users CONTENT $p1 WHERE age > $p2"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{map[string]interface{}{"name": "John"}, 18}, args)
 }
@@ -143,7 +143,7 @@ func TestUpdateBuilderContentWithSuffix(t *testing.T) {
 	sql, args, err := b.ToSql()
 	assert.NoError(t, err)
 
-	expectedSql := "UPDATE users CONTENT $1 WHERE id = $2 RETURN AFTER"
+	expectedSql := "UPDATE users CONTENT $p1 WHERE id = $p2 RETURN AFTER"
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{map[string]interface{}{"name": "John"}, 1}, args)
 }

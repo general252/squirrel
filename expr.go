@@ -285,6 +285,45 @@ func (nilk NotILike) ToSql() (sql string, args []interface{}, err error) {
 	return Like(nilk).toSql("NOT ILIKE")
 }
 
+// Contains is syntactic sugar for use with CONTAINS conditions (SurrealDB).
+// Ex:
+//     .Where(Contains{"tags": "tag1"}) == "tags CONTAINS 'tag1'"
+//     .Where(Contains{"description": "search_term"}) == "description CONTAINS 'search_term'"
+type Contains map[string]interface{}
+
+func (ct Contains) ToSql() (sql string, args []interface{}, err error) {
+	var exprs []string
+	
+	sortedKeys := getSortedKeys(ct)
+	for _, key := range sortedKeys {
+		var expr string
+		val := ct[key]
+
+		switch v := val.(type) {
+		case driver.Valuer:
+			if val, err = v.Value(); err != nil {
+				return "", nil, err
+			}
+		}
+
+		if val == nil {
+			err = fmt.Errorf("cannot use null with contains operators")
+			return "", nil, err
+		} else {
+			if isListType(val) {
+				err = fmt.Errorf("cannot use array or slice with contains operators")
+				return "", nil, err
+			} else {
+				expr = fmt.Sprintf("%s CONTAINS ?", key)
+				args = append(args, val)
+			}
+		}
+		exprs = append(exprs, expr)
+	}
+	sql = strings.Join(exprs, " AND ")
+	return
+}
+
 // Lt is syntactic sugar for use with Where/Having/Set methods.
 // Ex:
 //     .Where(Lt{"id": 1})
