@@ -324,6 +324,45 @@ func (ct Contains) ToSql() (sql string, args []interface{}, err error) {
 	return
 }
 
+// NotContains is syntactic sugar for use with NOT CONTAINS conditions (SurrealDB).
+// Ex:
+//     .Where(NotContains{"tags": "tag1"}) == "tags NOT CONTAINS 'tag1'"
+//     .Where(NotContains{"description": "search_term"}) == "description NOT CONTAINS 'search_term'"
+type NotContains map[string]interface{}
+
+func (nct NotContains) ToSql() (sql string, args []interface{}, err error) {
+	var exprs []string
+	
+	sortedKeys := getSortedKeys(nct)
+	for _, key := range sortedKeys {
+		var expr string
+		val := nct[key]
+
+		switch v := val.(type) {
+		case driver.Valuer:
+			if val, err = v.Value(); err != nil {
+				return "", nil, err
+			}
+		}
+
+		if val == nil {
+			err = fmt.Errorf("cannot use null with contains operators")
+			return "", nil, err
+		} else {
+			if isListType(val) {
+				err = fmt.Errorf("cannot use array or slice with contains operators")
+				return "", nil, err
+			} else {
+				expr = fmt.Sprintf("%s NOT CONTAINS ?", key)
+				args = append(args, val)
+			}
+		}
+		exprs = append(exprs, expr)
+	}
+	sql = strings.Join(exprs, " AND ")
+	return
+}
+
 // Lt is syntactic sugar for use with Where/Having/Set methods.
 // Ex:
 //     .Where(Lt{"id": 1})
