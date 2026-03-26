@@ -326,8 +326,8 @@ func (ct Contains) ToSql() (sql string, args []interface{}, err error) {
 
 // NotContains is syntactic sugar for use with NOT CONTAINS conditions (SurrealDB).
 // Ex:
-//     .Where(NotContains{"tags": "tag1"}) == "tags NOT CONTAINS 'tag1'"
-//     .Where(NotContains{"description": "search_term"}) == "description NOT CONTAINS 'search_term'"
+//     .Where(NotContains{"tags": "tag1"}) == "NOT (tags CONTAINS 'tag1')"
+//     .Where(NotContains{"description": "search_term"}) == "NOT (description CONTAINS 'search_term')"
 type NotContains map[string]interface{}
 
 func (nct NotContains) ToSql() (sql string, args []interface{}, err error) {
@@ -353,7 +353,7 @@ func (nct NotContains) ToSql() (sql string, args []interface{}, err error) {
 				err = fmt.Errorf("cannot use array or slice with contains operators")
 				return "", nil, err
 			} else {
-				expr = fmt.Sprintf("%s NOT CONTAINS ?", key)
+				expr = fmt.Sprintf("NOT (%s CONTAINS ?)", key)
 				args = append(args, val)
 			}
 		}
