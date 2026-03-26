@@ -20,6 +20,7 @@ type selectData struct {
 	Joins             []Sqlizer
 	WhereParts        []Sqlizer
 	GroupBys          []string
+	GroupAll          bool
 	HavingParts       []Sqlizer
 	OrderByParts      []Sqlizer
 	Limit             string
@@ -132,7 +133,9 @@ func (d *selectData) toSqlRaw() (sqlStr string, args []interface{}, err error) {
 		}
 	}
 
-	if len(d.GroupBys) > 0 {
+	if d.GroupAll && d.PlaceholderFormat == Surreal {
+		sql.WriteString(" GROUP ALL")
+	} else if len(d.GroupBys) > 0 {
 		sql.WriteString(" GROUP BY ")
 		sql.WriteString(strings.Join(d.GroupBys, ", "))
 	}
@@ -395,6 +398,11 @@ func (b SelectBuilder) Where(pred interface{}, args ...interface{}) SelectBuilde
 // GroupBy adds GROUP BY expressions to the query.
 func (b SelectBuilder) GroupBy(groupBys ...string) SelectBuilder {
 	return builder.Extend(b, "GroupBys", groupBys).(SelectBuilder)
+}
+
+// GroupAll sets a GROUP ALL clause on the query (SurrealDB).
+func (b SelectBuilder) GroupAll() SelectBuilder {
+	return builder.Set(b, "GroupAll", true).(SelectBuilder)
 }
 
 // Having adds an expression to the HAVING clause of the query.

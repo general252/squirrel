@@ -482,3 +482,16 @@ func TestSelectBuilderSurrealMultipleContains(t *testing.T) {
 	assert.Equal(t, expectedSql, sql)
 	assert.Equal(t, []interface{}{"admin", "read"}, args)
 }
+
+func TestSelectBuilderSurrealGroupAll(t *testing.T) {
+	b := Select("*").
+		From("user").
+		GroupAll().
+		PlaceholderFormat(Surreal)
+
+	sql, _, err := b.ToSql()
+	assert.NoError(t, err)
+
+	expectedSql := "SELECT * FROM user GROUP ALL"
+	assert.Equal(t, expectedSql, sql)
+}
