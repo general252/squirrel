@@ -136,7 +136,7 @@ func (e aliasExpr) ToSql() (sql string, args []interface{}, err error) {
 // Eq is syntactic sugar for use with Where/Having/Set methods.
 type Eq map[string]interface{}
 
-func (eq Eq) toSQL(useNotOpr bool) (sql string, args []interface{}, err error) {
+func (eq Eq) toSQL(useNotOpr bool, isSurreal bool) (sql string, args []interface{}, err error) {
 	if len(eq) == 0 {
 		// Empty Sql{} evaluates to true.
 		sql = sqlTrue
@@ -152,7 +152,11 @@ func (eq Eq) toSQL(useNotOpr bool) (sql string, args []interface{}, err error) {
 	)
 
 	if useNotOpr {
-		equalOpr = "<>"
+		if isSurreal {
+			equalOpr = "!="
+		} else {
+			equalOpr = "<>"
+		}
 		inOpr = "NOT IN"
 		nullOpr = "IS NOT"
 		inEmptyExpr = sqlTrue
@@ -207,7 +211,7 @@ func (eq Eq) toSQL(useNotOpr bool) (sql string, args []interface{}, err error) {
 }
 
 func (eq Eq) ToSql() (sql string, args []interface{}, err error) {
-	return eq.toSQL(false)
+	return eq.toSQL(false, false)
 }
 
 // NotEq is syntactic sugar for use with Where/Having/Set methods.
@@ -216,7 +220,17 @@ func (eq Eq) ToSql() (sql string, args []interface{}, err error) {
 type NotEq Eq
 
 func (neq NotEq) ToSql() (sql string, args []interface{}, err error) {
-	return Eq(neq).toSQL(true)
+	return Eq(neq).toSQL(true, false)
+}
+
+// NotEqSurreal is syntactic sugar for use with Where/Having/Set methods in SurrealDB.
+// Ex:
+//
+//	.Where(NotEqSurreal{"id": 1}) == "id != ?"
+type NotEqSurreal Eq
+
+func (neqs NotEqSurreal) ToSql() (sql string, args []interface{}, err error) {
+	return Eq(neqs).toSQL(true, true)
 }
 
 // Like is syntactic sugar for use with LIKE conditions.
@@ -293,7 +307,7 @@ type Contains map[string]interface{}
 
 func (ct Contains) ToSql() (sql string, args []interface{}, err error) {
 	var exprs []string
-	
+
 	sortedKeys := getSortedKeys(ct)
 	for _, key := range sortedKeys {
 		var expr string
@@ -332,7 +346,7 @@ type NotContains map[string]interface{}
 
 func (nct NotContains) ToSql() (sql string, args []interface{}, err error) {
 	var exprs []string
-	
+
 	sortedKeys := getSortedKeys(nct)
 	for _, key := range sortedKeys {
 		var expr string
